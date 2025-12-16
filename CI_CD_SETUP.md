@@ -2,10 +2,12 @@
 
 ## Обзор
 
-Настроены два CI/CD конвейера:
+Настроены четыре CI/CD конвейера:
 
 1. **auth-service** → DockerHub (непрерывная интеграция и доставка)
-2. **profile-service** → Yandex Cloud (непрерывная интеграция и развертывание)
+2. **jobs-service** → DockerHub (непрерывная интеграция и доставка)
+3. **profile-service** → Yandex Cloud (непрерывная интеграция и развертывание)
+4. **applications-service** → Yandex Cloud (непрерывная интеграция и развертывание)
 
 ---
 
@@ -41,6 +43,24 @@
 2. Перейдите в **Actions** в вашем GitHub репозитории
 3. Дождитесь завершения workflow
 4. Проверьте на DockerHub: https://hub.docker.com/r/YOUR_USERNAME/auth-service
+
+---
+
+## Часть 1.2: Настройка jobs-service для DockerHub
+
+### Шаг 1: Использование существующих секретов
+
+Если вы уже настроили секреты для `auth-service`, то дополнительные секреты не требуются. Используются те же:
+
+- `DOCKER_USERNAME`
+- `DOCKER_PASSWORD`
+
+### Шаг 2: Проверка работы
+
+1. Сделайте commit и push изменений в папке `jobs/` или в файл `.github/workflows/jobs-dockerhub.yml`
+2. Перейдите в **Actions** в вашем GitHub репозитории
+3. Дождитесь завершения workflow
+4. Проверьте на DockerHub: https://hub.docker.com/r/YOUR_USERNAME/jobs-service
 
 ---
 
@@ -158,13 +178,86 @@
 
 ---
 
+## Часть 2.2: Настройка applications-service для Yandex Cloud
+
+### Шаг 1: Использование существующих настроек
+
+Если вы уже настроили Container Registry и сервисный аккаунт для `profile-service`, то используйте те же:
+
+- `YC_REGISTRY_ID`
+- `YC_KEYS`
+- `YC_FOLDER_ID`
+- `YC_SA_ID`
+
+### Шаг 2: Создание Serverless Container для applications-service
+
+1. В Yandex Cloud Console перейдите в **Serverless Containers**
+2. Нажмите **Создать контейнер**
+3. Укажите название (должно начинаться с вашей фамилии, например: `ivanov-applications-service`)
+4. Выберите сервисный аккаунт `sa-cicd`
+5. Нажмите **Создать**
+6. Включите **Публичный доступ** в настройках контейнера
+
+### Шаг 3: Настройка дополнительных секретов в GitHub
+
+1. В GitHub репозитории: **Settings** → **Secrets and variables** → **Actions**
+2. Добавьте следующие секреты:
+
+   **YC_APPLICATIONS_CONTAINER_NAME**
+
+   - Name: `YC_APPLICATIONS_CONTAINER_NAME`
+   - Value: имя вашего контейнера для applications-service (например: `ivanov-applications-service`)
+
+   **ENV_APPLICATIONS_DATABASE_URL**
+
+   - Name: `ENV_APPLICATIONS_DATABASE_URL`
+   - Value: строка подключения к PostgreSQL для applications-service
+   - Пример: `postgresql://apps_user:apps_pass@51.250.26.59:5432/applications_db`
+
+   **ENV_JOBS_SERVICE_URL**
+
+   - Name: `ENV_JOBS_SERVICE_URL`
+   - Value: URL сервиса вакансий (jobs-service)
+   - Если jobs-service развернут в Yandex Cloud, укажите его URL
+   - Или используйте публичный URL вашего jobs-service
+
+   **ENV_PROFILE_SERVICE_URL**
+
+   - Name: `ENV_PROFILE_SERVICE_URL`
+   - Value: URL сервиса профиля (profile-service)
+   - Используйте URL вашего profile-service из Yandex Cloud
+
+   **ENV_AUTH_SERVICE_URL** (если еще не добавлен)
+
+   - Name: `ENV_AUTH_SERVICE_URL`
+   - Value: URL сервиса авторизации
+
+   **ENV_JWT_SECRET** (если еще не добавлен)
+
+   - Name: `ENV_JWT_SECRET`
+   - Value: секретный ключ для JWT (должен совпадать с другими сервисами)
+
+### Шаг 4: Проверка работы
+
+1. Сделайте commit и push изменений в папке `applications/` или в файл `.github/workflows/applications-yandex.yml`
+2. Перейдите в **Actions** в GitHub
+3. Дождитесь завершения workflow (два job: build-and-push-to-yc и deploy)
+4. Проверьте в Yandex Cloud:
+   - Container Registry: должен появиться образ `applications-service`
+   - Serverless Containers: должна появиться новая ревизия контейнера для applications-service
+5. Проверьте публичный URL контейнера
+
+---
+
 ## Структура файлов
 
 ```
 .github/
   workflows/
-    auth-dockerhub.yml      # CI/CD для auth-service → DockerHub
-    profile-yandex.yml      # CI/CD для profile-service → Yandex Cloud
+    auth-dockerhub.yml         # CI/CD для auth-service → DockerHub
+    jobs-dockerhub.yml         # CI/CD для jobs-service → DockerHub
+    profile-yandex.yml         # CI/CD для profile-service → Yandex Cloud
+    applications-yandex.yml     # CI/CD для applications-service → Yandex Cloud
 ```
 
 ## Триггеры запуска
@@ -173,7 +266,7 @@ Workflow запускаются автоматически при:
 
 - Push в ветку `master` или `main`
 - Создании Pull Request в `master` или `main`
-- Изменениях в соответствующих папках (`auth/` или `profile/`)
+- Изменениях в соответствующих папках (`auth/`, `jobs/`, `profile/`, `applications/`)
 
 ## Отладка
 
@@ -206,8 +299,8 @@ Workflow запускаются автоматически при:
 
 В файле `.github/workflows/profile-yandex.yml` можно изменить:
 
-- `revision-cpu`: количество vCPU (по умолчанию: 1)
-- `revision-memory`: объем памяти (по умолчанию: 512M)
+- `revision-cores`: количество vCPU (по умолчанию: 1)
+- `revision-memory`: объем памяти с суффиксом Mb или Gb (по умолчанию: 512Mb)
 
 ### Добавление других переменных окружения
 
