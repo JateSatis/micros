@@ -56,7 +56,7 @@ jobs:
           revision-image-url: cr.yandex/${{ secrets.YC_REGISTRY_ID }}/profile-service:latest
           revision-service-account-id: ${{ secrets.YC_SA_ID }}
           revision-cores: 1
-          revision-memory: 512
+          revision-memory: 512Mb
           revision-env: |
             DATABASE_URL=${{ secrets.ENV_DATABASE_URL }}
             JWT_SECRET=${{ secrets.ENV_JWT_SECRET }}
