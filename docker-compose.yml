@@ -1,0 +1,280 @@
+services:
+  # PostgreSQL для auth сервиса
+  auth-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_pass
+      POSTGRES_DB: auth_db
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL для profile сервиса
+  profile-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: profile_user
+      POSTGRES_PASSWORD: profile_pass
+      POSTGRES_DB: profile_db
+    volumes:
+      - profile_db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U profile_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL для jobs сервиса
+  jobs-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: jobs_user
+      POSTGRES_PASSWORD: jobs_pass
+      POSTGRES_DB: jobs_db
+    volumes:
+      - jobs_db_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobs_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL для applications сервиса
+  applications-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: apps_user
+      POSTGRES_PASSWORD: apps_pass
+      POSTGRES_DB: applications_db
+    volumes:
+      - applications_db_data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apps_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL для reviews сервиса
+  reviews-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: reviews_user
+      POSTGRES_PASSWORD: reviews_pass
+      POSTGRES_DB: reviews_db
+    volumes:
+      - reviews_db_data:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reviews_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL для mailing сервиса
+  mailing-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: mailing_user
+      POSTGRES_PASSWORD: mailing_pass
+      POSTGRES_DB: mailing_db
+    volumes:
+      - mailing_db_data:/var/lib/postgresql/data
+    ports:
+      - "5437:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailing_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL для verification сервиса
+  verification-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: verif_user
+      POSTGRES_PASSWORD: verif_pass
+      POSTGRES_DB: verification_db
+    volumes:
+      - verification_db_data:/var/lib/postgresql/data
+    ports:
+      - "5438:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U verif_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL для notifications сервиса
+  notifications-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: notif_user
+      POSTGRES_PASSWORD: notif_pass
+      POSTGRES_DB: notifications_db
+    volumes:
+      - notifications_db_data:/var/lib/postgresql/data
+    ports:
+      - "5439:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notif_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Микросервис авторизации
+  auth-service:
+    build: ./auth
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql://auth_user:auth_pass@auth-db:5432/auth_db
+      JWT_SECRET: secret_key_for_jwt
+      JWT_ALGORITHM: HS256
+    depends_on:
+      auth-db:
+        condition: service_healthy
+
+  # Микросервис профиля
+  profile-service:
+    build: ./profile
+    ports:
+      - "8002:8000"
+    environment:
+      DATABASE_URL: postgresql://profile_user:profile_pass@profile-db:5432/profile_db
+      JWT_SECRET: secret_key_for_jwt
+      JWT_ALGORITHM: HS256
+      AUTH_SERVICE_URL: http://auth-service:8000
+    depends_on:
+      profile-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
+  # Микросервис вакансий
+  jobs-service:
+    build: ./jobs
+    ports:
+      - "8003:8000"
+    environment:
+      DATABASE_URL: postgresql://jobs_user:jobs_pass@jobs-db:5432/jobs_db
+      JWT_SECRET: secret_key_for_jwt
+      JWT_ALGORITHM: HS256
+      AUTH_SERVICE_URL: http://auth-service:8000
+    depends_on:
+      jobs-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
+  # Микросервис откликов
+  applications-service:
+    build: ./applications
+    ports:
+      - "8004:8000"
+    environment:
+      DATABASE_URL: postgresql://apps_user:apps_pass@applications-db:5432/applications_db
+      JWT_SECRET: secret_key_for_jwt
+      JWT_ALGORITHM: HS256
+      AUTH_SERVICE_URL: http://auth-service:8000
+      JOBS_SERVICE_URL: http://jobs-service:8000
+      PROFILE_SERVICE_URL: http://profile-service:8000
+    depends_on:
+      applications-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      jobs-service:
+        condition: service_started
+      profile-service:
+        condition: service_started
+
+  # Микросервис отзывов
+  reviews-service:
+    build: ./reviews
+    ports:
+      - "8005:8000"
+    environment:
+      DATABASE_URL: postgresql://reviews_user:reviews_pass@reviews-db:5432/reviews_db
+      JWT_SECRET: secret_key_for_jwt
+      JWT_ALGORITHM: HS256
+      AUTH_SERVICE_URL: http://auth-service:8000
+      JOBS_SERVICE_URL: http://jobs-service:8000
+    depends_on:
+      reviews-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      jobs-service:
+        condition: service_started
+
+  # Микросервис рассылки
+  mailing-service:
+    build: ./mailing
+    ports:
+      - "8006:8000"
+    environment:
+      DATABASE_URL: postgresql://mailing_user:mailing_pass@mailing-db:5432/mailing_db
+      JWT_SECRET: secret_key_for_jwt
+      JWT_ALGORITHM: HS256
+      AUTH_SERVICE_URL: http://auth-service:8000
+    depends_on:
+      mailing-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
+  # Микросервис верификации
+  verification-service:
+    build: ./verification
+    ports:
+      - "8007:8000"
+    environment:
+      DATABASE_URL: postgresql://verif_user:verif_pass@verification-db:5432/verification_db
+      JWT_SECRET: secret_key_for_jwt
+      JWT_ALGORITHM: HS256
+      AUTH_SERVICE_URL: http://auth-service:8000
+    depends_on:
+      verification-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
+  # Микросервис уведомлений
+  notifications-service:
+    build: ./notifications
+    ports:
+      - "8008:8000"
+    environment:
+      DATABASE_URL: postgresql://notif_user:notif_pass@notifications-db:5432/notifications_db
+      JWT_SECRET: secret_key_for_jwt
+      JWT_ALGORITHM: HS256
+      AUTH_SERVICE_URL: http://auth-service:8000
+    depends_on:
+      notifications-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
+volumes:
+  auth_db_data:
+  profile_db_data:
+  jobs_db_data:
+  applications_db_data:
+  reviews_db_data:
+  mailing_db_data:
+  verification_db_data:
+  notifications_db_data:

@@ -1,0 +1,41 @@
+name: CI/CD Auth Service to DockerHub
+
+on:
+  push:
+    branches: ["master", "main"]
+    paths:
+      - "auth/**"
+      - ".github/workflows/auth-dockerhub.yml"
+  pull_request:
+    branches: ["master", "main"]
+    paths:
+      - "auth/**"
+
+jobs:
+  build-and-push:
+    name: Build and Push to DockerHub
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build docker image
+        run: |
+          cd auth
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/auth-service:latest .
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/auth-service:${{ github.sha }} .
+
+      - name: Push to DockerHub
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/auth-service:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/auth-service:${{ github.sha }}
