@@ -82,3 +82,4 @@ jobs:
             JWT_SECRET=${{ secrets.ENV_JWT_SECRET }}
             JWT_ALGORITHM=HS256
             AUTH_SERVICE_URL=${{ secrets.ENV_AUTH_SERVICE_URL }}
+

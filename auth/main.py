@@ -7,12 +7,25 @@ from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+from prometheus_fastapi_instrumentator import Instrumentator
+import logging
 import os
 import uuid
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+instrumentator = Instrumentator()
+instrumentator.instrument(app)
+instrumentator.expose(app)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://auth_user:auth_pass@localhost:5432/auth_db")
 JWT_SECRET = os.getenv("JWT_SECRET", "secret_key_for_jwt")
@@ -100,13 +113,16 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
 @app.post("/api/auth/register", response_model=RegisterResponse)
 async def register(request: RegisterRequest, db: Session = Depends(get_db)):
+    logger.info(f"Registration attempt for email: {request.email}")
     # Проверка существующего пользователя
     existing_user = db.query(User).filter(User.email == request.email).first()
     if existing_user:
+        logger.warning(f"Registration failed: user already exists - {request.email}")
         raise HTTPException(status_code=400, detail="User already exists")
     
     # Валидация роли
     if request.role not in ["candidate", "employer"]:
+        logger.warning(f"Registration failed: invalid role - {request.role}")
         raise HTTPException(status_code=400, detail="Invalid role")
     
     # Создание пользователя
@@ -120,6 +136,7 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     
+    logger.info(f"User registered successfully: {user.id} ({user.email})")
     return RegisterResponse(
         id=user.id,
         email=user.email,
@@ -131,11 +148,14 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/login", response_model=LoginResponse)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    logger.info(f"Login attempt for email: {request.email}")
     user = db.query(User).filter(User.email == request.email).first()
     if not user or not verify_password(request.password, user.password_hash):
+        logger.warning(f"Login failed: invalid credentials for {request.email}")
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     access_token = create_access_token(data={"sub": user.id, "email": user.email, "role": user.role})
+    logger.info(f"User logged in successfully: {user.id} ({user.email})")
     
     return LoginResponse(
         access_token=access_token,
@@ -146,3 +166,4 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+

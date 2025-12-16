@@ -62,3 +62,4 @@ def test_authentication_flow_integration():
     assert login_result["status"] == "success"
     assert register_result["id"] is not None
     assert login_result["access_token"] is not None
+

@@ -59,3 +59,4 @@ jobs:
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/auth-service:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/auth-service:${{ github.sha }}
+

@@ -6,12 +6,26 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from jose import JWTError, jwt
 from datetime import datetime
+from prometheus_fastapi_instrumentator import Instrumentator
 from typing import Optional
+import logging
 import os
 import uuid
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 security = HTTPBearer()
+
+# Настройка Prometheus метрик
+instrumentator = Instrumentator()
+instrumentator.instrument(app)
+instrumentator.expose(app)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://verif_user:verif_pass@localhost:5432/verification_db")
 JWT_SECRET = os.getenv("JWT_SECRET", "secret_key_for_jwt")
@@ -86,6 +100,7 @@ async def submit_passport(
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Submitting passport verification for user: {user_id}")
     # Проверка на активную верификацию
     active_verification = db.query(Verification).filter(
         Verification.user_id == user_id,
@@ -93,6 +108,7 @@ async def submit_passport(
     ).first()
     
     if active_verification:
+        logger.warning(f"Active verification already exists for user: {user_id}")
         raise HTTPException(
             status_code=409,
             detail="Active verification already exists for this user"
@@ -124,11 +140,13 @@ async def submit_passport(
     except Exception:
         db.delete(verification)
         db.commit()
+        logger.error(f"Failed to send verification data to external service for user: {user_id}")
         raise HTTPException(
             status_code=422,
             detail="Failed to send data to external service"
         )
     
+    logger.info(f"Verification request submitted successfully: {verification.id}")
     return {
         "verification_id": verification.id,
         "status": verification.status,
@@ -185,3 +203,4 @@ async def get_verification_status(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+

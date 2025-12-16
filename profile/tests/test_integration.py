@@ -64,3 +64,4 @@ def test_profile_management_flow_integration():
     assert email_result["status"] == "email_updated"
     assert phone_result["status"] == "phone_updated"
     assert resume_result["status"] == "resume_created"
+

@@ -6,12 +6,26 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from jose import JWTError, jwt
 from datetime import datetime
+from prometheus_fastapi_instrumentator import Instrumentator
 from typing import Optional
+import logging
 import os
 import uuid
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 security = HTTPBearer()
+
+# Настройка Prometheus метрик
+instrumentator = Instrumentator()
+instrumentator.instrument(app)
+instrumentator.expose(app)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://mailing_user:mailing_pass@localhost:5432/mailing_db")
 JWT_SECRET = os.getenv("JWT_SECRET", "secret_key_for_jwt")
@@ -153,8 +167,10 @@ async def send_email(
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Sending email to: {request.to}, subject: {request.subject}")
     # Проверка шаблона (упрощенная)
     if request.template_id and request.template_id not in ["welcome-template", "notification-template"]:
+        logger.warning(f"Email template not found: {request.template_id}")
         raise HTTPException(status_code=404, detail="Email template not found")
     
     # Создание записи о письме
@@ -175,7 +191,7 @@ async def send_email(
     email_message.status = "sent"
     email_message.sent_at = datetime.utcnow()
     db.commit()
-    
+    logger.info(f"Email sent successfully: {email_message.id}")
     return {
         "message_id": email_message.id,
         "status": email_message.status,
@@ -186,3 +202,4 @@ async def send_email(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+

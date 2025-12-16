@@ -64,3 +64,4 @@ def test_job_lifecycle_integration():
     assert create_result["status"] == "created"
     assert update_result["status"] == "updated"
     assert delete_result["status"] == "deleted"
+

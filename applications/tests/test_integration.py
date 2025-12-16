@@ -64,3 +64,4 @@ def test_application_workflow_integration():
     assert create_result["status"] == "pending"
     assert accept_result["status"] == "accepted"
     assert create_result["id"] == accept_result["id"]
+

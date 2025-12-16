@@ -54,3 +54,4 @@ def test_resume_update_validation():
     assert mock_resume.id is not None
     assert mock_resume.user_id is not None
     assert "Senior" in mock_resume.title
+

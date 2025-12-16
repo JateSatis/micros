@@ -6,13 +6,27 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from jose import JWTError, jwt
 from datetime import datetime
+from prometheus_fastapi_instrumentator import Instrumentator
 from typing import Optional
+import logging
 import os
 import uuid
 import httpx
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 security = HTTPBearer()
+
+# Настройка Prometheus метрик
+instrumentator = Instrumentator()
+instrumentator.instrument(app)
+instrumentator.expose(app)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://apps_user:apps_pass@localhost:5432/applications_db")
 JWT_SECRET = os.getenv("JWT_SECRET", "secret_key_for_jwt")
@@ -97,6 +111,7 @@ async def create_application(
     candidate_id: str = Depends(get_user_id),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Creating application by candidate: {candidate_id} for job: {request.job_id}")
     # Упрощенные проверки
     await check_job_exists(request.job_id)
     await check_resume_exists(request.resume_id, candidate_id)
@@ -110,7 +125,7 @@ async def create_application(
     db.add(application)
     db.commit()
     db.refresh(application)
-    
+    logger.info(f"Application created successfully: {application.id}")
     return {
         "id": application.id,
         "message": "Application submitted successfully",
@@ -150,3 +165,4 @@ async def accept_application(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+

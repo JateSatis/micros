@@ -52,3 +52,4 @@ def test_employer_role_check():
     
     assert mock_user.role == "employer"
     assert mock_user.id is not None
+

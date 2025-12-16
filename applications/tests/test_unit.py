@@ -50,3 +50,4 @@ def test_candidate_authorization_check():
     
     assert mock_user.id is not None
     assert mock_user.role == "candidate"
+

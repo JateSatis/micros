@@ -6,12 +6,26 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from jose import JWTError, jwt
 from datetime import datetime
+from prometheus_fastapi_instrumentator import Instrumentator
 from typing import Optional
+import logging
 import os
 import uuid
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 security = HTTPBearer()
+
+# Настройка Prometheus метрик
+instrumentator = Instrumentator()
+instrumentator.instrument(app)
+instrumentator.expose(app)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://jobs_user:jobs_pass@localhost:5432/jobs_db")
 JWT_SECRET = os.getenv("JWT_SECRET", "secret_key_for_jwt")
@@ -99,6 +113,7 @@ async def create_job(
     employer_id: str = Depends(check_employer_role),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Creating job by employer: {employer_id}, title: {request.title}")
     job = Job(
         employer_id=employer_id,
         title=request.title,
@@ -114,7 +129,7 @@ async def create_job(
     db.add(job)
     db.commit()
     db.refresh(job)
-    
+    logger.info(f"Job created successfully: {job.id}")
     return {"id": job.id, "message": "Job created successfully"}
 
 
@@ -247,3 +262,4 @@ async def search_jobs(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+

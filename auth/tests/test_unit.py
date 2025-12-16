@@ -48,3 +48,4 @@ def test_jwt_token_creation():
     assert "sub" in mock_payload
     assert mock_token is not None
     assert len(mock_token) > 0
+

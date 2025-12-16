@@ -6,13 +6,27 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from jose import JWTError, jwt
 from datetime import datetime
+from prometheus_fastapi_instrumentator import Instrumentator
 from typing import Optional
+import logging
 import os
 import uuid
 import httpx
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 security = HTTPBearer()
+
+# Настройка Prometheus метрик
+instrumentator = Instrumentator()
+instrumentator.instrument(app)
+instrumentator.expose(app)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://reviews_user:reviews_pass@localhost:5432/reviews_db")
 JWT_SECRET = os.getenv("JWT_SECRET", "secret_key_for_jwt")
@@ -93,6 +107,7 @@ async def create_review(
     author_id: str = Depends(check_candidate_role),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Creating review by user: {author_id} for job: {request.job_id}")
     # Проверка существования вакансии
     await check_job_exists(request.job_id)
     
@@ -103,10 +118,12 @@ async def create_review(
     ).first()
     
     if existing_review:
+        logger.warning(f"Review already exists for job: {request.job_id} by user: {author_id}")
         raise HTTPException(status_code=409, detail="Review for this job already exists")
     
     # Валидация рейтинга
     if request.rating < 1 or request.rating > 5:
+        logger.warning(f"Invalid rating: {request.rating}")
         raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
     
     review = Review(
@@ -119,7 +136,7 @@ async def create_review(
     db.add(review)
     db.commit()
     db.refresh(review)
-    
+    logger.info(f"Review created successfully: {review.id}")
     return {
         "id": review.id,
         "job_id": review.job_id,
@@ -168,3 +185,4 @@ async def update_review(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+

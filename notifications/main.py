@@ -6,12 +6,26 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from jose import JWTError, jwt
 from datetime import datetime
+from prometheus_fastapi_instrumentator import Instrumentator
 from typing import Optional
+import logging
 import os
 import uuid
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 security = HTTPBearer()
+
+# Настройка Prometheus метрик
+instrumentator = Instrumentator()
+instrumentator.instrument(app)
+instrumentator.expose(app)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://notif_user:notif_pass@localhost:5432/notifications_db")
 JWT_SECRET = os.getenv("JWT_SECRET", "secret_key_for_jwt")
@@ -149,6 +163,7 @@ async def send_notification(
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Sending notification to user: {request.user_id}, type: {request.type}")
     # Проверка существования пользователя (упрощенная)
     # В реальности нужно проверять через auth-service
     
@@ -160,7 +175,7 @@ async def send_notification(
     
     if not devices:
         # В реальности может быть ошибка, но для простоты продолжаем
-        pass
+        logger.warning(f"No enabled devices found for user: {request.user_id}")
     
     # Создание уведомления
     notification = Notification(
@@ -176,7 +191,7 @@ async def send_notification(
     db.refresh(notification)
     
     # В реальности здесь должна быть отправка через FCM, APNS и т.д.
-    
+    logger.info(f"Notification sent successfully: {notification.id}")
     return {
         "notification_id": notification.id,
         "status": notification.status,
@@ -187,3 +202,4 @@ async def send_notification(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+

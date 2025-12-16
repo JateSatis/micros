@@ -6,12 +6,26 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from jose import JWTError, jwt
 from datetime import datetime
+from prometheus_fastapi_instrumentator import Instrumentator
+import logging
 import os
 import uuid
 import httpx
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 security = HTTPBearer()
+
+# Настройка Prometheus метрик
+instrumentator = Instrumentator()
+instrumentator.instrument(app)
+instrumentator.expose(app)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://profile_user:profile_pass@localhost:5432/profile_db")
 JWT_SECRET = os.getenv("JWT_SECRET", "secret_key_for_jwt")
@@ -128,6 +142,7 @@ async def update_passport(
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Updating passport data for user: {user_id}")
     profile = db.query(Profile).filter(Profile.user_id == user_id).first()
     if not profile:
         profile = Profile(user_id=user_id)
@@ -139,7 +154,7 @@ async def update_passport(
     profile.passport_issued_date = request.issued_date
     
     db.commit()
-    
+    logger.info(f"Passport data updated successfully for user: {user_id}")
     return {"message": "Passport data updated successfully"}
 
 
@@ -183,6 +198,7 @@ async def create_resume(
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Creating resume for user: {user_id}, title: {request.title}")
     resume = Resume(
         user_id=user_id,
         title=request.title,
@@ -195,7 +211,7 @@ async def create_resume(
     db.add(resume)
     db.commit()
     db.refresh(resume)
-    
+    logger.info(f"Resume created successfully: r-{resume.id} for user: {user_id}")
     return {"id": f"r-{resume.id}", "message": "Resume created successfully"}
 
 
@@ -255,3 +271,4 @@ async def delete_resume(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
